@@ -127,9 +127,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="basetypes.h" />
+    <ClInclude Include="bitread.h" />
     <ClInclude Include="icekey.h" />
+    <ClInclude Include="lzss.h" />
+    <ClInclude Include="packet.h" />
+    <ClInclude Include="platform.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="bitread.cpp" />
     <ClCompile Include="icekey.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>

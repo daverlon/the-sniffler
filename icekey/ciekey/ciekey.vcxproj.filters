@@ -18,12 +18,30 @@
     <ClInclude Include="icekey.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="lzss.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="bitread.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="packet.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="platform.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="basetypes.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="icekey.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="bitread.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

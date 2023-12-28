@@ -8,6 +8,7 @@
 using namespace std;
 
 #include "icekey.h"
+#include "bitread.h"
 
 constexpr char hexmap[] = { '0', '1', '2', '3', '4', '5', '6', '7',
                            '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
@@ -49,6 +50,8 @@ void displayBytes(unsigned char* data) {
     cout << endl;
 }
 
+int debug = 1;
+
 int main(int argc, char* argv[]) {
 
     /*
@@ -65,40 +68,66 @@ int main(int argc, char* argv[]) {
     
     */
 
-    int n = 2;
-    string keystr = "d7NSuLq2"; // perhaps convert to bytes? idk
-    // (encrypted payload)
-    string payloadstr = "1a1b1c1d1a1b1c1d"; // (hex) ---> ??? (hex)
+	if (argc != 3) {
+		cerr << "Must provide function and hex string as arguments. Example: decompress 1a1b1c1d1a1b1c1d" << endl;
+        cerr << "Functions: decrypt, decompress" << endl;
+		return 1;
+	}
 
-    if (1 == 0) {
-        cout << n << " " << keystr << " " << endl;
-        cout << payloadstr << endl << endl;
+
+    std::string function = argv[1];
+
+	string payloadstr = argv[2];
+
+	// convert payload (hex str) to bytes*
+	vector<uint8_t> payloadbytesvec = hexStringToBytes(payloadstr);
+	uint8_t* payloadbytes = payloadbytesvec.data();
+
+    if (function == "decrypt") {
+
+        int n = 2;
+        string keystr = "d7NSuLq2"; // perhaps convert to bytes? idk
+        // (encrypted payload)
+        //string payloadstr = "1a1b1c1d1a1b1c1d"; // (hex) ---> ??? (hex)
+
+        // convert key to bytes*
+        uint8_t* keybytes = (uint8_t*)keystr.c_str();
+
+        // setup icekey
+        IceKey ik(n);
+        ik.set(keybytes);
+
+        uint8_t dec[8];
+        ik.decrypt(payloadbytes, dec);
+
+        // encrypt it again to ensure that it matches the original
+        uint8_t enc[8];
+        ik.encrypt(dec, enc);
+
+        //cout << bytesToHexStr(enc) << endl;
+        if (bytesToHexStr(enc) != payloadstr) {
+            cerr << "ERROR: Mismatch between input ciphertext and output ciphertext:" << endl;
+            cerr << payloadstr << endl;
+            cerr << bytesToHexStr(enc) << endl;
+            return 1;
+        }
+
+        cout << bytesToHexStr(dec);
+    }
+    else if (function == "decompress") {
+
+        // decompress it
+        CLZSS s;
+        if (s.IsCompressed(payloadbytes)) {
+            if (debug)
+                cout << "Compressed packet.";
+        }
+        else {
+            if (debug)
+                cout << "Not compressed packet.";
+        }
     }
 
-    // convert key to bytes*
-    uint8_t* keybytes = (uint8_t*)keystr.c_str();
-
-    // convert payload (hex str) to bytes*
-    vector<uint8_t> payloadbytesvec = hexStringToBytes(payloadstr);
-    uint8_t* payloadbytes = payloadbytesvec.data();
-
-    // setup icekey
-    IceKey ik(n);
-    ik.set(keybytes);
-
-    uint8_t dec[8];
-    ik.decrypt(payloadbytes, dec);
-
-    // encrypt it again to ensure that it matches the original
-    uint8_t enc[8];
-    ik.encrypt(dec, enc);
-
-    //cout << bytesToHexStr(enc) << endl;
-    if (bytesToHexStr(enc) != payloadstr) {
-        cerr << "ERROR: Mismatch between input ciphertext and output ciphertext" << endl;
-        return 1;
-    }
-    cout << bytesToHexStr(dec);
 
     return 0;
 }
