@@ -9,6 +9,46 @@ using namespace std;
 
 #include "icekey.h"
 
+constexpr char hexmap[] = { '0', '1', '2', '3', '4', '5', '6', '7',
+                           '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
+
+string bytesToHexStr(const unsigned char* data)
+{
+    int len = 8;
+    string s(len * 2, ' ');
+    for (int i = 0; i < len; ++i) {
+        s[2 * i] = hexmap[(data[i] & 0xF0) >> 4];
+        s[2 * i + 1] = hexmap[data[i] & 0x0F];
+    }
+    return s;
+}
+
+std::vector<uint8_t> hexStringToBytes(const std::string& hexString) {
+    std::vector<uint8_t> bytes;
+
+    // Iterate over pairs of characters in the hex string
+    for (std::size_t i = 0; i < hexString.length(); i += 2) {
+        // Extract two characters from the hex string
+        std::string byteString = hexString.substr(i, 2);
+
+        // Convert the two characters to an actual byte (uint8_t)
+        uint8_t byte = static_cast<uint8_t>(std::stoi(byteString, nullptr, 16));
+
+        // Add the byte to the vector
+        bytes.push_back(byte);
+    }
+
+    return bytes;
+}
+
+void displayBytes(unsigned char* data) {
+    int len = 8;
+    for (int i = 0; i < 8; ++i) {
+        cout << static_cast<int>(data[i]) << ' ';
+    }
+    cout << endl;
+}
+
 int main(int argc, char* argv[]) {
 
     /*
@@ -26,27 +66,39 @@ int main(int argc, char* argv[]) {
     */
 
     int n = 2;
-    string key = "d7NSuLq2"; // perhaps convert to bytes? idk
-    string hexString = "1a1b1c1d1a1b1c1d"; // ---> 5d d7 b9 1a 9f 69 fd a1
+    string keystr = "d7NSuLq2"; // perhaps convert to bytes? idk
+    // (encrypted payload)
+    string payloadstr = "1a1b1c1d1a1b1c1d"; // (hex) ---> ??? (hex)
 
-    IceKey ik(n);
-
-    // convert std::strings to unsigned const char*
-    const unsigned char* ucckey = reinterpret_cast<const unsigned char*>(key.c_str());
-    const unsigned char* uccstr = reinterpret_cast<const unsigned char*>(hexString.c_str());
-
-    ik.set(ucckey);
-
-    unsigned char buff[8] = {};
-    ik.decrypt(uccstr, buff);
-
-    //displaybytes(buff);
-
-    // Print the bytes in decimal format
-    for (size_t i = 0; i < sizeof(buff) / sizeof(buff[0]); ++i) {
-        std::cout << static_cast<int>(buff[i]) << ' ';
+    if (1 == 0) {
+        cout << n << " " << keystr << " " << endl;
+        cout << payloadstr << endl << endl;
     }
-    std::cout << std::endl;
+
+    // convert key to bytes*
+    uint8_t* keybytes = (uint8_t*)keystr.c_str();
+
+    // convert payload (hex str) to bytes*
+    vector<uint8_t> payloadbytesvec = hexStringToBytes(payloadstr);
+    uint8_t* payloadbytes = payloadbytesvec.data();
+
+    // setup icekey
+    IceKey ik(n);
+    ik.set(keybytes);
+
+    uint8_t dec[8];
+    ik.decrypt(payloadbytes, dec);
+
+    // encrypt it again to ensure that it matches the original
+    uint8_t enc[8];
+    ik.encrypt(dec, enc);
+
+    //cout << bytesToHexStr(enc) << endl;
+    if (bytesToHexStr(enc) != payloadstr) {
+        cerr << "ERROR: Mismatch between input ciphertext and output ciphertext" << endl;
+        return 1;
+    }
+    cout << bytesToHexStr(dec);
 
     return 0;
 }
