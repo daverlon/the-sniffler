@@ -25,7 +25,9 @@ def decryptblock(hexstring: str) -> str:
         return
     cmd = DECRYPT_APP + " decrypt " + hexstring
     result = subprocess.check_output(cmd, shell=True, text=True)
+    # print(cmd + " ---> " + result)
     # print(f'assert(decryptblock("{hexstring}")=="{result}")')
+    # assert(decryptblock(hexstring)=="{result}") # recursion problem <---
     return result
 
 def decryptall(hexstring: str) -> []:
@@ -44,7 +46,7 @@ def decompresspayload(hexstring: str):
     # full packet
     cmd = DECRYPT_APP + " decompress " + hexstring
     result = subprocess.check_output(cmd, shell=True, text=True)
-    print(result)
+    # print(cmd + " ---> " + result)
     if "Not" not in result:
         print("FOUND COMPRESSED PACKET")
         exit()
@@ -61,25 +63,36 @@ def packet_callback(packet: Packet):
             decrypted_hex = decryptall(payload_hex)
 
             # packet summary
+            # print()
             print("Packet:", packet.summary())
+            print()
 
             # packet in hex
             print("Payload (hex):")
             print(payload_hex)
 
             print()
+            print("Payload (bytes)")
+            print(bytes.fromhex(payload_hex))
+
+            print()
             print("Payload (hex decrypted):")
-            print(decrypted_hex)
+            print(''.join(decrypted_hex))
             print()
 
             print("Payload (bytes decrypted):")
             decrypted_bytes = bytes.fromhex(''.join(decrypted_hex))
             print(decrypted_bytes)
 
+            print()
+            print(decompresspayload(''.join(decrypted_hex)))
+            print(decompresspayload(payload_hex))
+
             # print("Payload (bytes decompressed)")
             # decompressed_bytes = decompress(decrypted_bytes)
             # print(decompressed_bytes)
-            decompresspayload(''.join(payload_hex))
+            # decompresspayload(''.join(payload_hex))
+            # decompresspayload(str(decrypted_bytes))
 
             
 

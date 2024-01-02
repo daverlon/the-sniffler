@@ -85,7 +85,7 @@ int main(int argc, char* argv[]) {
 
     if (function == "decrypt") {
 
-        int n = 2;
+        int n = 0;
         string keystr = "d7NSuLq2"; // perhaps convert to bytes? idk
         // (encrypted payload)
         //string payloadstr = "1a1b1c1d1a1b1c1d"; // (hex) ---> ??? (hex)
