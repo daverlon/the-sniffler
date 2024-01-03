@@ -8,7 +8,7 @@ import sys
 
 SAMPLE_PACKET = "c70d0000d00c000021c8ba00ae7c1ede8823c137bf200430c6f6951776370757564606f0d12f0801a4b97dd5cd95ad95e589bd85c991cd85b5c1b195d1a5b595017cf50b42006d5f796177009ffd821040db97591a1b5d991cc077bf2004d0f635563747f7d616363656c606f0e12f0801b47dc985dda5b9c1d5d1017cf90b420073656e7369746976697479009ffe821080da5bde575ed8dd5c99db5c1a5d9a5d1a5d1ec0b7bf2004a0f69637479736b606f0f12f0801e8bdbdb57dcd95b9cda5d1a5d9a5d1e57dc985d1a5bd015c1710800188aa458ab94301a83182d10f226a141055ab1461870250639ca33864d72620aa9628e20e05a0c6f846e50fac394054ad88d41d0a408dd18cb0546f7380a85a13c93b14801ae31925ae16b70151b542f176280035462a5a7f99cd01a26a7da2ed50006a8c7bbcfee89b0344d5c244d8a100d41be358ff75fe0488aa9589b14301a8315ed1fbdb7b101055ab136b87025063a4e2fd07e92020aad643c20e05a0c698c729c9af5d40542d88841d0a408dd18b23935f9b80a85a15d93b14801aa31f85ad72070151b5247277280035c637ca587ced02a26a6de2ec50006a8c7be4fe781e0444d5f244dba100d418b318ff3d390788aa058ab64301a831e6d1fb6b6e0e10554b1365870250636422fca7f52020aa9629c20e05a0c6f8c59988b94140542d4ea41d0a408d718de45fb57b80a85a0e293b14801a631eb123ec060151b5287276280035c637165c810e03ae41466201207ec00140cb491689058003080e000c599cde4600a2ff11daed53335c60076e12009935000060100000601000009ed08000000083000000830000f084b60e004235120b00311c80"
 
-NETMSG_TYPE_BITS = 5	# must be 2^NETMSG_TYPE_BITS > SVC_LASTMSG
+NETMSG_TYPE_BITS = 6	# must be 2^NETMSG_TYPE_BITS > SVC_LASTMSG
 NET_MAX_PAYLOAD = 524284
 
 NET_HEADER_FLAG_QUERY = -1 # 0xFFFFFFFF
@@ -167,6 +167,12 @@ def flip_bit(v, b):
         v |= b
     return v
 
+def pad_bytes(payload: bytes):
+    l = len(payload) % 8
+    xtra = 8 - l
+    payload = payload + bytes([0] * xtra)
+    return payload
+
 def get_number_of_remaining_bits(payload: bytes): return sys.getsizeof(payload)
 
 def read_ubit_long(data, n_bits):
@@ -263,8 +269,8 @@ def decodepacket(payload: bytes):
     print(f"seqacknum: {seqacknum.value}")
     print(f"flags: {format(flags.value, '08b')}")
 
-    if payload[0] == b'\x00':
-        _, payload = extract_bytes(payload, 1)
+    # if payload[0] == b'\x00':
+    #     _, payload = extract_bytes(payload, 1)
 
     # checksum
     # _, payload = extract_bytes(payload, 1)
@@ -292,8 +298,8 @@ def decodepacket(payload: bytes):
     newest_seqnum = seqnum.value
 
     challenge = None
-    if flags.value & PACKET_FLAG_CHALLENGE and 1 == 0:
-        challenge_type = ctypes.c_ulong
+    if flags.value & PACKET_FLAG_CHALLENGE:
+        challenge_type = ctypes.c_uint32
         chbytes, payload = extract_bytes(payload, ctypes.sizeof(challenge_type))
         challenge = challenge_type.from_buffer_copy(chbytes)
         print("\tnChallenge:", challenge.value)
@@ -301,8 +307,21 @@ def decodepacket(payload: bytes):
     if seqnum.value == 0x36:
         flags.value |= PACKET_FLAG_TABLES
 
-    if flags.value & PACKET_FLAG_RELIABLE or 1==1:
-        print("RELIABLE PACKET")
+    if flags.value & PACKET_FLAG_COMPRESSED:
+        print("$ COMPRESSED PACKET $")
+
+    if flags.value & PACKET_FLAG_COMPRESSED:
+        print("$ ENCRYPTED PACKET $")
+    
+    if flags.value & PACKET_FLAG_CHALLENGE:
+        print("$ CHALLENGE PACKET $")
+
+    if flags.value & PACKET_FLAG_SPLIT:
+        print("$ SPLIT PACKET $")
+
+
+    if flags.value & PACKET_FLAG_RELIABLE:
+        print("$ RELIABLE PACKET $")
 
         bit, payload = read_ubit_long(payload, 3)
 
@@ -315,6 +334,7 @@ def decodepacket(payload: bytes):
         # decode msgs
         print('-'*20)
         while True:
+            print("Remaining payload:")
             print(payload, len(payload))
             if get_number_of_remaining_bits(payload) < NETMSG_TYPE_BITS:
                 break
@@ -323,23 +343,22 @@ def decodepacket(payload: bytes):
                 result = 0
                 shift = 0
                 count = 0
-
                 for byte in encoded_bytes:
                     result |= (byte & 0x7F) << shift
                     shift += 7
                     count += 1
                     if not byte & 0x80:
-                        print("Found 0x80")
+                        print("* Found 0x80")
                         break
                     elif count >= 5:
-                        print("Max bytes reached.")
+                        print("* Max bytes reached.")
                         break
-                print(f"Consumed {count} bytes.")
+                print(f"* Consumed {count} bytes.")
                 return result, encoded_bytes[count:]
 
             msg, payload = read_ubit_long(payload, NETMSG_TYPE_BITS)
-            print("Msg:", msg)
-            print("Msg:", format(msg, '08b'))
+            print("Msg id:", msg)
+            print("Msg id (bytes):", format(msg, '08b'))
             unique_msgs.add(msg)
 
             bufsize, payload = read_varint32(payload)
@@ -350,12 +369,15 @@ def decodepacket(payload: bytes):
                 print("*** Break:", bufsize)
                 break 
             if bufsize > get_number_of_remaining_bits(payload)//8:
-                print("*** Break msg size larger than remaining bytes:", bufsize)
+                print(f"*** Break msg size larger than remaining bytes: {bufsize}/{get_number_of_remaining_bits(payload)//8}")
                 break
 
-            msg_payload = payload[:bufsize]
-            print("\tMsg payload:", msg_payload)
+            # payload = pad_bytes(payload)
 
+            msg_payload = payload[:bufsize]
+            print("Msg payload:", msg_payload)
+
+            payload = payload[bufsize:]
 
             # message CSVCMsg_GetCvarValue
             # {
@@ -390,18 +412,7 @@ def decodepacket(payload: bytes):
 
 
 
-    # if flags.value & PACKET_FLAG_COMPRESSED:
-    #     print("COMPRESSED PACKET")
-
-    # if flags.value & PACKET_FLAG_COMPRESSED:
-    #     print("ENCRYPTED PACKET")
     
-    # if flags.value & PACKET_FLAG_CHALLENGE:
-    #     print("CHALLENGE PACKET")
-
-    # if flags.value & PACKET_FLAG_SPLIT:
-    #     print("SPLIT PACKET")
-
     
 def do_checksum(data, offset):
     checksum = binascii.crc32(data[offset:]) & 0xFFFFFFFF
