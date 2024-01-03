@@ -1,0 +1,13 @@
+﻿  bitread.cpp
+C:\Users\admin\Downloads\CODE\the-sniffler\lzss\bitread.cpp(70,17): warning C4244: 'initializing': conversion from 'uintptr_t' to 'int', possible loss of data
+C:\Users\admin\Downloads\CODE\the-sniffler\lzss\bitread.cpp(281,5): warning C4311: 'type cast': pointer truncation from 'const void *' to 'unsigned long'
+C:\Users\admin\Downloads\CODE\the-sniffler\lzss\bitread.cpp(281,5): warning C4302: 'type cast': truncation from 'const void *' to 'unsigned long'
+C:\Users\admin\Downloads\CODE\the-sniffler\lzss\bitread.cpp(398,33): warning C4311: 'type cast': pointer truncation from 'unsigned char *' to 'unsigned long'
+C:\Users\admin\Downloads\CODE\the-sniffler\lzss\bitread.cpp(398,33): warning C4302: 'type cast': truncation from 'unsigned char *' to 'unsigned long'
+C:\Users\admin\Downloads\CODE\the-sniffler\lzss\bitread.cpp(664,20): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+C:\Users\admin\Downloads\CODE\the-sniffler\lzss\bitread.cpp(842,63): warning C4244: '=': conversion from '__int64' to 'unsigned char', possible loss of data
+C:\Users\admin\Downloads\CODE\the-sniffler\lzss\bitread.cpp(845,36): warning C4244: '=': conversion from '__int64' to 'unsigned char', possible loss of data
+C:\Users\admin\Downloads\CODE\the-sniffler\lzss\bitread.cpp(891,32): warning C4244: '=': conversion from '__int64' to 'unsigned int', possible loss of data
+bitread.obj : error LNK2005: "public: __cdecl CLZSS::CLZSS(int)" (??0CLZSS@@QEAA@H@Z) already defined in main.obj
+main.obj : error LNK2019: unresolved external symbol "public: static bool __cdecl CLZSS::IsCompressed(unsigned char const *)" (?IsCompressed@CLZSS@@SA_NPEBE@Z) referenced in function main
+C:\Users\admin\Downloads\CODE\the-sniffler\lzss\x64\Debug\lzss.exe : fatal error LNK1120: 1 unresolved externals
