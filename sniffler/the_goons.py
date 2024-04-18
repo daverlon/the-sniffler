@@ -11,6 +11,8 @@ SAMPLE_PACKET = "c70d0000d00c000021c8ba00ae7c1ede8823c137bf200430c6f695177637075
 NETMSG_TYPE_BITS = 6	# must be 2^NETMSG_TYPE_BITS > SVC_LASTMSG
 NET_MAX_PAYLOAD = 524284
 
+MAX_STREAMS = 2
+
 NET_HEADER_FLAG_QUERY = -1 # 0xFFFFFFFF
 NET_HEADER_FLAG_SPLITPACKET = -2 # 0xFFFFFFFE
 NET_HEADER_FLAG_COMPRESSEDPACKET = -3 # 0xFFFFFFFD
@@ -59,10 +61,13 @@ PACKET_FLAG_TABLES = 1 << 10 #custom flag, request string tables
     is_challenge = (flags & PACKET_FLAG_CHALLENGE) != 0
 """
 
-target_ip = "139.99.136.174" # griver
-target_ip = "203.209.209.92" # griver? (snakoo pub?)
-target_ip = "203.209.209.92" # bhop
-# target_ip = "67.219.97.72" # trikz
+target_ips = [
+    "139.99.136.174",
+    "203.209.209.92",
+    "67.219.97.72",
+    "67.219.102.38",
+]
+
 log_file_path = "packet_log.txt"
 
 # 0xFF_FF_FF_FF (or -1)
@@ -70,6 +75,8 @@ log_file_path = "packet_log.txt"
 NET_HEADER_FLAG_QUERY = -1
 NET_HEADER_FLAG_SPLITPACKET = -2
 NET_HEADER_FLAG_COMPRESSEDPACKET = -3
+
+net_Disconnect = 1
 
 def format_hex(s): return ' '.join(s[i:i+2] for i in range(0, len(s), 2))
 
@@ -252,6 +259,13 @@ def decodepacket(payload: bytes):
     checksum_type = ctypes.c_ushort
     
     # Extract and create instances using from_buffer_copy
+
+    """
+	int sequence	= packet->message.ReadLong();
+	int sequence_ack= packet->message.ReadLong();
+	int flags		= packet->message.ReadByte();
+    """
+
     seqnum_bytes, payload = extract_bytes(payload, ctypes.sizeof(seqnum_type))
     seqnum = seqnum_type.from_buffer_copy(seqnum_bytes)
 
@@ -261,8 +275,14 @@ def decodepacket(payload: bytes):
     flags_bytes, payload = extract_bytes(payload, ctypes.sizeof(flags_type))
     flags = flags_type.from_buffer_copy(flags_bytes)
 
+    ###
+
+    # unsigned short usCheckSum = (unsigned short)packet->message.ReadUBitLong( 16 );
+
     checksum_bytes, payload = extract_bytes(payload, ctypes.sizeof(checksum_type))
     checksum = checksum_type.from_buffer_copy(checksum_bytes)
+
+    ###
 
     # Now seqnum, seqacknum, flags, checksum are ctypes instances with correct values
     print(f"seqnum: {seqnum.value}")
@@ -272,7 +292,7 @@ def decodepacket(payload: bytes):
     # if payload[0] == b'\x00':
     #     _, payload = extract_bytes(payload, 1)
 
-    # checksum
+    # -------- checksum --------
     # _, payload = extract_bytes(payload, 1)
     offset = payload[0] >> 3
     chck = do_checksum(payload, offset)
@@ -281,15 +301,21 @@ def decodepacket(payload: bytes):
     if checksum.value != chck:
         print("Checksum mismatch. Datagram invalid.")
         return
+    # -------- checksum --------
 
     # relstate (reliability) (1 byte)
+    # int relState	= packet->message.ReadByte();	// reliable state of 8 subchannels
     relstate, payload = extract_bytes(payload, 1)
 
     # nChoked = 0
+#    if ( flags & PACKET_FLAG_CHOKED )
+#		nChoked = packet->message.ReadByte(); 
     if flags.value & PACKET_FLAG_CHOKED:
         print("CHOKED.")
         nchoked, payload = extract_bytes(payload, 1)
 
+    #// discard stale or duplicated packets
+	#if (sequence <= m_nInSequenceNr )
     if seqnum.value <= newest_seqnum:
         print("Out of order packet.")
         # return
@@ -297,6 +323,17 @@ def decodepacket(payload: bytes):
         # return
     newest_seqnum = seqnum.value
 
+    # not present in 2018-hl2 ?
+    if seqnum.value == 0x36:
+        print("$ PACKET_FLAG_TABLES $")
+        flags.value |= PACKET_FLAG_TABLES
+    # # # 
+
+    if flags == -1:
+        print("Found invalid packet (-1). Ignoring.")
+
+    # if ( flags & PACKET_FLAG_CHALLENGE )
+    # unsigned int nChallenge = packet->message.ReadLong();
     challenge = None
     if flags.value & PACKET_FLAG_CHALLENGE:
         challenge_type = ctypes.c_uint32
@@ -304,14 +341,13 @@ def decodepacket(payload: bytes):
         challenge = challenge_type.from_buffer_copy(chbytes)
         print("\tnChallenge:", challenge.value)
 
-    if seqnum.value == 0x36:
-        flags.value |= PACKET_FLAG_TABLES
-
     if flags.value & PACKET_FLAG_COMPRESSED:
         print("$ COMPRESSED PACKET $")
+        exit()
 
     if flags.value & PACKET_FLAG_COMPRESSED:
         print("$ ENCRYPTED PACKET $")
+        exit()
     
     if flags.value & PACKET_FLAG_CHALLENGE:
         print("$ CHALLENGE PACKET $")
@@ -323,112 +359,139 @@ def decodepacket(payload: bytes):
     if flags.value & PACKET_FLAG_RELIABLE:
         print("$ RELIABLE PACKET $")
 
-        bit, payload = read_ubit_long(payload, 3)
+        #bit1, b1 = read_n_ubits(payload, 3)
+        bit2, b2 = read_ubit_long(payload, 3)
 
-        bit = 1 << bit
+        payload = b2 # b1 does not seem to remove the bits?
+
+        #print("Bit test:", bit1, bit2, b1 == b2)
+        #print("Diff:", b1, '\n', b2)
+
+        bit = 1 << bit2
         # print("Bit:", bit)
 
-        in_reliable_state = flip_bit(in_reliable_state, bit)
+        # in_reliable_state = flip_bit(in_reliable_state, bit)
         # print("Remaining bits:", get_number_of_remaining_bits(payload))
 
-        # decode msgs
+    # at end?
+    #    if ( buf.GetNumBitsLeft() < NETMSG_TYPE_BITS )
+    if get_number_of_remaining_bits(payload) <= 6:
+        print("Reached end of message?. Skipping")
+        return
+
+    #define NETMSG_TYPE_BITS	6	
+    # unsigned char cmd = buf.ReadUBitLong( NETMSG_TYPE_BITS );
+    cmd, payload = read_ubit_long(payload, 6)
+    print("netmsg:", cmd)
+    #define net_File		2	
+
+    if cmd == net_Disconnect:
+        # bf::ReadString
+        s = []
+        i = 0
+        while get_number_of_remaining_bits(payload) > 8:
+            ch, payload = read_ubit_long(payload, 8)
+            print(ch)
+            s.append(ctypes.c_char.from_buffer_copy(bytes(ch)))
+        print(s)
+
+
+        print("Disconnect packet. Quitting")
+        exit()
+
+    if cmd <= 2:
+        print("cmd message <= net_File. Skipping")
+        return
+
+
+    return
+
+    # decode msgs
+    print('-'*20)
+    while True:
+        print("Remaining payload:")
+        print(payload, len(payload))
+        if get_number_of_remaining_bits(payload) < NETMSG_TYPE_BITS:
+            break
+
+        def read_varint32(encoded_bytes):
+            result = 0
+            shift = 0
+            count = 0
+            for byte in encoded_bytes:
+                result |= (byte & 0x7F) << shift
+                shift += 7
+                count += 1
+                if not byte & 0x80:
+                    print("* Found 0x80")
+                    break
+                elif count >= 5:
+                    print("* Max bytes reached.")
+                    break
+            print(f"* Consumed {count} bytes.")
+            return result, encoded_bytes[count:]
+
+        msg, payload = read_ubit_long(payload, NETMSG_TYPE_BITS)
+        print("Msg id:", msg)
+        print("Msg id (bytes):", format(msg, '08b'))
+        unique_msgs.add(msg)
+
+        bufsize, payload = read_varint32(payload)
+        print("Msg size:", bufsize)
+        print("Remaining bits/bytes:", get_number_of_remaining_bits(payload), get_number_of_remaining_bits(payload)//8)
+
+        if bufsize < 0 or bufsize > NET_MAX_PAYLOAD:
+            print("*** Break:", bufsize)
+            break 
+        if bufsize > get_number_of_remaining_bits(payload)//8:
+            print(f"*** Break msg size larger than remaining bytes: {bufsize}/{get_number_of_remaining_bits(payload)//8}")
+            break
+
+        # payload = pad_bytes(payload)
+
+        msg_payload = payload[:bufsize]
+        print("Msg payload:", msg_payload)
+
+        payload = payload[bufsize:]
+
+        # message CSVCMsg_GetCvarValue
+        # {
+        #     optional int32 cookie = 1;		// QueryCvarCookie_t
+        #     optional string cvar_name = 2;
+        # }
+        # if msg == 31:
+        #     print("GetCvarValue")
+        #     cookieint = ctypes.c_uint32
+        #     cookie_bytes, payload = extract_bytes(payload, ctypes.sizeof(cookieint))
+        #     cookie = cookieint.from_buffer_copy(cookie_bytes)
+        #     print(cookie.value)
+
+        #     x, payload = (payload)
+        #     print(x)
+
+
+        # print(decompresspayload(payload[:bufsize+1].hex()))
+        # print(decompresspayload(''.join(decryptall(payload[:bufsize].hex()))))
         print('-'*20)
-        while True:
-            print("Remaining payload:")
-            print(payload, len(payload))
-            if get_number_of_remaining_bits(payload) < NETMSG_TYPE_BITS:
-                break
 
-            def read_varint32(encoded_bytes):
-                result = 0
-                shift = 0
-                count = 0
-                for byte in encoded_bytes:
-                    result |= (byte & 0x7F) << shift
-                    shift += 7
-                    count += 1
-                    if not byte & 0x80:
-                        print("* Found 0x80")
-                        break
-                    elif count >= 5:
-                        print("* Max bytes reached.")
-                        break
-                print(f"* Consumed {count} bytes.")
-                return result, encoded_bytes[count:]
-
-            msg, payload = read_ubit_long(payload, NETMSG_TYPE_BITS)
-            print("Msg id:", msg)
-            print("Msg id (bytes):", format(msg, '08b'))
-            unique_msgs.add(msg)
-
-            bufsize, payload = read_varint32(payload)
-            print("Msg size:", bufsize)
-            print("Remaining bits/bytes:", get_number_of_remaining_bits(payload), get_number_of_remaining_bits(payload)//8)
-
-            if bufsize < 0 or bufsize > NET_MAX_PAYLOAD:
-                print("*** Break:", bufsize)
-                break 
-            if bufsize > get_number_of_remaining_bits(payload)//8:
-                print(f"*** Break msg size larger than remaining bytes: {bufsize}/{get_number_of_remaining_bits(payload)//8}")
-                break
-
-            # payload = pad_bytes(payload)
-
-            msg_payload = payload[:bufsize]
-            print("Msg payload:", msg_payload)
-
-            payload = payload[bufsize:]
-
-            # message CSVCMsg_GetCvarValue
-            # {
-            #     optional int32 cookie = 1;		// QueryCvarCookie_t
-            #     optional string cvar_name = 2;
-            # }
-            # if msg == 31:
-            #     print("GetCvarValue")
-            #     cookieint = ctypes.c_uint32
-            #     cookie_bytes, payload = extract_bytes(payload, ctypes.sizeof(cookieint))
-            #     cookie = cookieint.from_buffer_copy(cookie_bytes)
-            #     print(cookie.value)
-
-            #     x, payload = (payload)
-            #     print(x)
-
-
-            # print(decompresspayload(payload[:bufsize+1].hex()))
-            # print(decompresspayload(''.join(decryptall(payload[:bufsize].hex()))))
-            print('-'*20)
-
-        print(unique_msgs)
+    print(unique_msgs)
             
-            
-
-            
-
-
-
-
-
-
-
-
-    
-    
 def do_checksum(data, offset):
     checksum = binascii.crc32(data[offset:]) & 0xFFFFFFFF
     lower_word = checksum & 0xFFFF
     upper_word = (checksum >> 16) & 0xFFFF
     return lower_word ^ upper_word
 
-
 def packet_callback(packet: Packet):
     if IP in packet and UDP in packet:
-        if packet[IP].src == target_ip or packet[IP].dst == target_ip:
+        #if packet[IP].src == target_ip or packet[IP].dst == target_ip:
+        if packet[IP].src in target_ips:
+        #    if packet[IP].src == "192.168.0.2": return
 
             print("="*50)
 
             payload_hex = packet.payload.load.hex()
-            decrypted_hex = decryptall(payload_hex)
+            #decrypted_hex = decryptall(payload_hex)
 
             # packet summary
             # print()
@@ -458,14 +521,14 @@ if __name__ == "__main__":
     # print(ice.Decrypt(bytes_data))
 
 
-    # sniff(prn=packet_callback, store=0)
+    sniff(prn=packet_callback, store=0)
 
-    decodepacket(bytes.fromhex(SAMPLE_PACKET))
+    # decodepacket(bytes.fromhex(SAMPLE_PACKET))
 
     # test decryption
     exit()
-    hx = "495a0600e659060020a47500e0793e1c43ad9601c0128112806688ac5a0600030004000842b75a0600311380"
-    print(decryptall(hx))
+    # hx = "495a0600e659060020a47500e0793e1c43ad9601c0128112806688ac5a0600030004000842b75a0600311380"
+    # print(decryptall(hx))
 
     assert(decryptblock("495a0600e6590600")=="06adcda07f127916")
     assert(decryptblock("495a0600e6590600")=="06adcda07f127916")

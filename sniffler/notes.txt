@@ -1,0 +1,42 @@
+void NET_ProcessSocket( int sock, IConnectionlessPacketHandler *handler )
+packet header (check if query msg)
+
+void CNetChan::ProcessPacket( netpacket_t * packet, bool bHasHeader )
+handle non query packet
+
+int CNetChan::ProcessPacketHeader( netpacket_t * packet )
+
+
+class SVC_PacketEntities: public CNetMessage
+{
+	DECLARE_SVC_MESSAGE( PacketEntities );
+	
+	int	GetGroup() const { return INetChannelInfo::ENTITIES	; }
+	
+public:
+
+	int			m_nMaxEntries;
+	int			m_nUpdatedEntries;
+	bool		m_bIsDelta;	
+	bool		m_bUpdateBaseline;
+	int			m_nBaseline;
+	int			m_nDeltaFrom;
+	int			m_nLength;
+	bf_read		m_DataIn;
+	bf_write	m_DataOut;
+};
+
+INetMessage *CNetChan::FindMessage(int type)
+{
+	int numtypes = m_NetMessages.Count();
+
+	for (int i=0; i<numtypes; i++ )
+	{
+		if ( m_NetMessages[i]->GetType() == type )
+			return m_NetMessages[i];
+	}
+
+	return NULL;
+}
+
+bool CNetChan::ProcessMessages( bf_read &buf  )
