@@ -61,6 +61,7 @@ PACKET_FLAG_TABLES = 1 << 10 #custom flag, request string tables
     is_challenge = (flags & PACKET_FLAG_CHALLENGE) != 0
 """
 
+<<<<<<< HEAD
 target_ips = [
     "139.99.136.174",
     "203.209.209.92",
@@ -68,6 +69,12 @@ target_ips = [
     "67.219.102.38",
 ]
 
+=======
+target_ip = "xxx" # griver
+target_ip = "xxx" # griver? (snakoo pub?)
+target_ip = "xxx" # bhop
+# target_ip = "xxx" # trikz
+>>>>>>> 04de6b2e9e344bc283f08cb5b9dbc402da258af4
 log_file_path = "packet_log.txt"
 
 # 0xFF_FF_FF_FF (or -1)
