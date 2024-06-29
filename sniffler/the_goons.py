@@ -1,6 +1,6 @@
 from scapy.all import sniff, IP, UDP, Packet
 import subprocess
-from lzss import decompress
+# from lzss import decompress
 import ctypes
 import struct
 import binascii
@@ -61,7 +61,6 @@ PACKET_FLAG_TABLES = 1 << 10 #custom flag, request string tables
     is_challenge = (flags & PACKET_FLAG_CHALLENGE) != 0
 """
 
-<<<<<<< HEAD
 target_ips = [
     "139.99.136.174",
     "203.209.209.92",
@@ -69,12 +68,6 @@ target_ips = [
     "67.219.102.38",
 ]
 
-=======
-target_ip = "xxx" # griver
-target_ip = "xxx" # griver? (snakoo pub?)
-target_ip = "xxx" # bhop
-# target_ip = "xxx" # trikz
->>>>>>> 04de6b2e9e344bc283f08cb5b9dbc402da258af4
 log_file_path = "packet_log.txt"
 
 # 0xFF_FF_FF_FF (or -1)
@@ -393,6 +386,7 @@ def decodepacket(payload: bytes):
     #define net_File		2	
 
     if cmd == net_Disconnect:
+        return
         # bf::ReadString
         s = []
         i = 0
@@ -495,19 +489,24 @@ def packet_callback(packet: Packet):
         if packet[IP].src in target_ips:
         #    if packet[IP].src == "192.168.0.2": return
 
-            print("="*50)
+            #print("="*50)
 
             payload_hex = packet.payload.load.hex()
+            with open("saved_packets.txt", "a") as f:
+                f.write(payload_hex + '\n')
+                f.close()
             #decrypted_hex = decryptall(payload_hex)
 
             # packet summary
             # print()
-            print("Packet:", packet.summary())
-            print()
+            #print("Packet:", packet.summary())
+            #print()
 
             # packet in hex
-            print("Payload (hex):")
+            #print("Payload (hex):")
             print(payload_hex)
+            print()
+            return
 
             print()
             print("Payload (bytes)")
